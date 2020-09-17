@@ -44,6 +44,7 @@ class project:
         self.taskdir[task_ob.id] = task_ob
         self.linksdf.loc[task_ob.id,'EarlyStart'] = self.startdate
         self.linksdf.loc[task_ob.id,'EarlyFinish'] = self.startdate
+
     def findstart(self):
         '''Method to find the root start task of the project tasks. Raises an exception 
         if there is more than one taks without predecessors
@@ -94,24 +95,45 @@ class project:
                         children.append(onetask.id)
         return children
             
+    def findParents(self,taskID):
+        '''Method to find the direct parents of a given task'''
+        
+        return self.taskdir[taskID].predecessors
+
     def feedforward(self):
         self.taskdir[self.startid].esd = self.startdate
         self.taskdir[self.startid].efd = self.startdate + datetime.timedelta(days = self.taskdir[self.startid].duration)
         
-    def forwardstep(self,taskID):
-        #Calculate the early finish date for the task that was passed. This presumes that the early start is correct
-        #Which it will be if you start with the start task with no predecessors.
-        #tempefd = self.linksdf.loc[taskID,'EarlyStart'] + datetime.timedelta(days = self.taskdir[taskID].duration)
-        #if tempefd >  self.linksdf.loc[taskID,'EarlyFinish']:
-         #   self.linksdf.loc[taskID,'EarlyFinish'] = tempefd #Replace it
+    def forwardprop(self,taskID):
+        '''Method to run the forward propagation of the Gantt chart to determine the project length'''
         #Get the children
         kids = self.findChildren(taskID)
         if len(kids) == 0: #If no children are found, then you are at completion. Kick out of the function.
-            return None  
+            self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[taskID,'EarlyFinish']
+            self.linksdf.loc[:,'LateStart'] = self.linksdf.loc[taskID,'EarlyStart']
+            for parent in self.findParents(taskID):
+                self.backwardprop(taskID)
         else:
             for child in kids:
                tempesd = self.linksdf.loc[taskID,'EarlyFinish']
                if tempesd > self.linksdf.loc[child,'EarlyStart']:
                    self.linksdf.loc[child,'EarlyStart'] = tempesd  #Shift the start date
                    self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = self.taskdir[child].duration)
-               self.forwardstep(child)
+               self.forwardprop(child)
+
+    def backwardprop(self,taskID):
+        '''Method to run the backwards propagation of the Gantt chart to determine the critical path'''
+
+        #Get the parents
+        parents = self.findParents(taskID)
+
+        if parents is None: #If no parents are found, then the backward prop is complete, kick out of method.
+            return None
+        else:
+            for parent in parents:
+                templfd = self.linksdf.loc[taskID,'LateStart']
+                if templfd <= self.linksdf.loc[parent,'LateFinish']:
+                    self.linksdf.loc[parent,'LateFinish'] = templfd # Shift the finish date
+                    self.linksdf.loc[parent,'LateStart'] = templfd - datetime.timedelta(days = self.taskdir[parent].duration)
+                self.backwardprop(parent)
+

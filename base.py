@@ -115,15 +115,18 @@ class project:
     def findChildren(self,taskID):
         '''Method to find the direct children of a given task'''
         children = []
-        for onetask in self.taskdir.values():
+        for onetask in self.taskdir.values(): # You have found the task itself
             if onetask.id == taskID:
                 continue
-            elif onetask.predecessors is None:
+            elif onetask.predecessors is None: 
                 continue
             else:
                 for i in onetask.predecessors:
                     if i == taskID:
                         children.append(onetask.id)
+        #If no children were found return a set with the string "EndofProject"
+        if len(children) == 0:
+            children.append("EndofProject")
         return children
             
     def findParents(self,taskID):
@@ -146,11 +149,35 @@ class project:
         else:
             for child in kids:
                tempesd = self.linksdf.loc[taskID,'EarlyFinish']
-               if tempesd > self.linksdf.loc[child,'EarlyStart']:
+               if tempesd >= self.linksdf.loc[child,'EarlyStart']:
                    self.linksdf.loc[child,'EarlyStart'] = tempesd  #Shift the start date
                    durdays = int(self.durations[child])
                    self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days =durdays)
-               self.forwardprop(child)
+                   self.forwardprop(child)
+        
+    def forwardprop2(self,taskID = None):
+        '''Method to run the forward propagation of the Gantt chart to determine the project length'''
+        if taskID is None:
+            taskID = self.startid
+
+        kids = self.findChildren(taskID)
+
+        for child in kids:
+            if child == "EndofProject":
+                tempesd = self.linksdf.loc[taskID,'EarlyFinish']
+                if tempesd > self.linksdf.loc[taskID,'EarlyStart']:
+                    self.linksdf.loc[child,'EarlyStart'] = tempesd #Shft the start date
+                    durdays = int(self.durations[child])
+                    self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
+            else:
+                tempesd = self.linksdf.loc[taskID,'EarlyFinish']
+                if tempesd >= self.linksdf.loc[child,'EarlyStart']:
+                    self.linksdf.loc[child,'EarlyStart'] = tempesd #Shift the start date
+                    durdays = int(self.durations[child])
+                    self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
+                    self.forwardprop2(child)
+
+        return "Done"
 
     def backwardprop(self,taskID):
         '''Method to run the backwards propagation of the Gantt chart to determine the critical path'''
@@ -167,14 +194,17 @@ class project:
                     self.linksdf.loc[parent,'LateFinish'] = templfd # Shift the finish date
                     durdays = int(self.durations[parent])
                     self.linksdf.loc[parent,'LateStart'] = templfd - datetime.timedelta(days = durdays)
-                self.backwardprop(parent)
+                    self.backwardprop(parent)
 
     def add_dist(self,taskID,scipy_object):
+        '''Accessor method to add a scipy.stats object to a task to run stochastic simulation'''
         self.taskdir[taskID].set_scipy(scipy_object)
 
     def sample(self):
+        '''Method to simulate the project once with stochastic values for tasks'''
         for task in self.taskdir.values():
             self.durations[task.id] = task.random_duration()
+            self.taskdf.loc[task.id,'Duration'] = self.durations[task.id]
 
     def summarytable(self):
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
@@ -189,7 +219,14 @@ def simulate(project,nsamp = 10):
     results = []
     for i in range(nsamp):
         project.sample()  #Populate the distributions attribute with random variables
-        project.forwardprop(project.startid) #Run the distributions
-        results.append(project.linksdf["EarlyFinish"].max())
         project._reset_linksdf()
+        project.forwardprop2(project.startid) #Run the distributions
+        results.append(project.summarytable())
     return results
+
+class distResults:
+    def __init__(self,resultsdf):
+        self.resultsdf = resultsdf
+    
+    def duration(self):
+        return self.resultsdf['EarlyFinish'].max() - self.resultsdf['EarlyStart'].min()

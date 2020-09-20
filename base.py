@@ -70,7 +70,7 @@ class project:
 
     def findstart(self):
         '''Method to find the root start task of the project tasks. Raises an exception 
-        if there is more than one taks without predecessors
+        if there is more than one tasks without predecessors
         '''
         zeropredlist = []
         for task in self.taskdir.values():
@@ -81,6 +81,14 @@ class project:
         else:
             self.startid = zeropredlist[0]
    
+    def findend(self):
+        '''Method to find the end task of the project tasks.
+        Needs an exception raised if it doesn't find end.'''
+        for task in self.taskdir.values():
+            test = self.findChildren(task.id)
+            if "EndofProject" in test:
+                self.endid = task.id
+            
     def showtask(self,id):
         '''Method to show task data for a given task'''
         self.taskdir[id].show()
@@ -98,6 +106,8 @@ class project:
         
         #Set the start variable
         self.findstart()
+        #Set the end variable
+        self.findend()
 
             #Clean this up
     
@@ -159,7 +169,7 @@ class project:
         '''Method to run the forward propagation of the Gantt chart to determine the project length'''
         if taskID is None:
             taskID = self.startid
-
+        
         kids = self.findChildren(taskID)
 
         for child in kids:
@@ -177,7 +187,14 @@ class project:
                     self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
                     self.forwardprop2(child)
 
-        return "Done"
+        self.start_backwardprop()
+
+    def start_backwardprop(self):
+        '''Method to kick off the backward propagation from the end task'''
+        self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[self.endid,'EarlyFinish'] #Set the late start adn late finish 
+        self.linksdf.loc[:,'LateStart'] = self.linksdf.loc[self.endid,'EarlyStart']   # In anticipation of calling backprop
+        self.backwardprop(self.endid)
+        return None
 
     def backwardprop(self,taskID):
         '''Method to run the backwards propagation of the Gantt chart to determine the critical path'''

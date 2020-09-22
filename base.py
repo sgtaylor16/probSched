@@ -110,11 +110,9 @@ class project:
         self.findend()
 
             #Clean this up
-    
-    def initialize_linksdf(self):
-        self.linksdf = pd.DataFrame(columns = ['EarlyStart','EarlyFinish','LateStart','LateFinish'])
         
     def _reset_linksdf(self):
+        '''Internal Method used to reset the taskdf after running as simulation, before running forwardprop.'''
         for row in self.linksdf.index:
             self.linksdf.loc[row,'EarlyStart'] = self.startdate
             durdays = int(self.durations[row])
@@ -238,7 +236,7 @@ def simulate(project,nsamp = 10):
         project.sample()  #Populate the distributions attribute with random variables
         project._reset_linksdf()
         project.forwardprop2(project.startid) #Run the distributions
-        results.append(project.summarytable())
+        results.append(distResults(project.summarytable()))  #Create a list of distResults class
     return results
 
 class distResults:
@@ -247,3 +245,31 @@ class distResults:
     
     def duration(self):
         return self.resultsdf['EarlyFinish'].max() - self.resultsdf['EarlyStart'].min()
+
+    def finish_date(self):
+        '''Method to return finish date of project'''
+        return self.resultsdf['EarlyFinish'].max().date()
+
+    def endtask(self):
+        '''Method to identify endtask.'''
+        tempdf = self.resultsdf
+        #Filter on all tasks with 0 duration
+
+        return tempdf.query("Duration == 0")['EarlyFinish'].sort_values().index[-1]
+
+
+    def critical_path(self):
+        
+        tempdf = self.resultsdf
+        #Find critical path
+        endindex = self.endtask()
+
+        #Create a list of items to search through
+        indexlist = tempdf.index.to_list()
+        indexlist.remove(endindex)
+
+        evaldate = tempdf.loc[endindex,'EarlyStart']
+
+        for i in indexlist:
+
+        return None

@@ -48,6 +48,7 @@ class task:
 
     def show_dist(self,size = 1000):
         '''Method to give a graphical depiction of the task duration distribution'''
+        #Find the 
         distplot(self.dist.rvs(size=size))
         
 class project:
@@ -246,30 +247,43 @@ class distResults:
     def duration(self):
         return self.resultsdf['EarlyFinish'].max() - self.resultsdf['EarlyStart'].min()
 
-    def finish_date(self):
-        '''Method to return finish date of project'''
-        return self.resultsdf['EarlyFinish'].max().date()
+    def finish_date(self,taskID):
+        '''Method to return finish date of a task in the project'''
+        return self.resultsdf.loc[taskID,'EarlyFinish'].date()
 
     def endtask(self):
         '''Method to identify endtask.'''
         tempdf = self.resultsdf
-        #Filter on all tasks with 0 duration
-
         return tempdf.query("Duration == 0")['EarlyFinish'].sort_values().index[-1]
 
+    def starttask(self):
+        '''Method to identify the starttask'''
+        tempdf = self.resultsdf
+        return tempdf.query("Duration == 0")['EarlyStart'].sort_values().index[0]
 
     def critical_path(self):
+        '''Finds the critical path'''
+
+        #Find the startdate
+        taskID = self.starttask()
+        cplist = [taskID]
+        return self.critical_path_recursive(taskID,cplist)
+    
+    def critical_path_recursive(self,taskID,cplist):
         
         tempdf = self.resultsdf
-        #Find critical path
-        endindex = self.endtask()
-
-        #Create a list of items to search through
-        indexlist = tempdf.index.to_list()
-        indexlist.remove(endindex)
-
-        evaldate = tempdf.loc[endindex,'EarlyStart']
-
-        for i in indexlist:
-
+        indexlist = tempdf.index
+        #Remove any tasks that start *before* taskid
+        temp = tempdf.loc[taskID,"LateFinish"]
+        temp2df = tempdf.query("LateStart >= @temp")
+        for i in temp2df.index:
+            if i == taskID:
+                continue
+            elif tempdf.loc[i,"LateStart"] == tempdf.loc[i,"LateFinish"]:
+                return cplist
+            elif tempdf.loc[i,"LateStart"] == tempdf.loc[taskID,"LateFinish"]:
+                cplist.append(i)
+                cplist  = self.critical_path_recursive(i,cplist)
+            else:
+                continue
         return None

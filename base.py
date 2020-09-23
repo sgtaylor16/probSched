@@ -99,7 +99,7 @@ class project:
         '''Method to find the end task of the project tasks.
         Needs an exception raised if it doesn't find end.'''
         for task in self.taskdir.values():
-            test = self.findChildren(task.id)
+            test = self.children[task.id]
             if "EndofProject" in test:
                 self.endid = task.id
             
@@ -120,6 +120,8 @@ class project:
         
         #Set the start variable
         self.findstart()
+                #Create the children map
+        self.children = self.familytree()
         #Set the end variable
         self.findend()
 
@@ -150,6 +152,12 @@ class project:
         if len(children) == 0:
             children.append("EndofProject")
         return children
+
+    def familytree(self):
+        family_dir = {}
+        for onetask in self.taskdir.values():
+            family_dir[onetask.id] = self.findChildren(onetask.id)
+        return family_dir
             
     def findParents(self,taskID):
         '''Method to find the direct parents of a given task'''
@@ -162,7 +170,7 @@ class project:
         if taskID is None:
             taskID = self.startid
 
-        kids = self.findChildren(taskID)
+        kids = self.children[taskID]
         if len(kids) == 0: #If no children are found, then you are at completion. Kick out of the function.
             self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[taskID,'EarlyFinish'] #Set the late start adn late finish 
             self.linksdf.loc[:,'LateStart'] = self.linksdf.loc[taskID,'EarlyStart']   # In anticipation of calling backprop
@@ -182,7 +190,7 @@ class project:
         if taskID is None:
             taskID = self.startid
         
-        kids = self.findChildren(taskID)
+        kids = self.children[taskID]
 
         for child in kids:
             if child == "EndofProject":

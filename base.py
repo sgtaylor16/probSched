@@ -4,6 +4,7 @@ import re
 import datetime
 from seaborn import distplot
 from numpy import nan
+from matplotlib import pyplot as plt
 
 class task:
     def __init__(self,id,task,dur,preds,scipy_object=None):
@@ -46,10 +47,22 @@ class task:
         '''Accessor method to set the dist attribute to a scipy.stats object'''
         self.dist = scipy_object
 
-    def show_dist(self,size = 1000):
+    def distplot(self,figsize = (12,6)):
         '''Method to give a graphical depiction of the task duration distribution'''
         #Find the 
-        distplot(self.dist.rvs(size=size))
+        ycdf = [0]
+        xvalues =[0]
+        xstep = 0.5
+        while ycdf[-1] < .99:
+            xvalues.append(xvalues[-1] + xstep)
+            ycdf.append(self.dist.cdf(xvalues[-1]))
+        ypdf = [self.dist.pdf(xval) for xval in xvalues]
+
+        fig,ax = plt.subplots(1,2,figsize = figsize)
+        ax[0].fill_between(xvalues,ypdf,alpha = 0.7)
+        ax[0].grid()
+        ax[1].fill_between(xvalues,ycdf,alpha = 0.7)
+        ax[1].grid()
         
 class project:
     def __init__(self,startdate = None):
@@ -225,6 +238,8 @@ class project:
     def summarytable(self):
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
 
+    def distplot(self,taskID,figsize = None):
+        self.taskdir[taskID].distplot(figsize)
 
 def simulate(project,nsamp = 10):
     '''Function to simulate a project to create a distribution

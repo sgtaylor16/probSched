@@ -185,7 +185,7 @@ class project:
                    self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days =durdays)
                    self.forwardprop(child)
         
-    def forwardprop2(self,taskID = None):
+    def forwardprop2(self,taskID = None,backprop = True):
         '''Method to run the forward propagation of the Gantt chart to determine the project length'''
         if taskID is None:
             taskID = self.startid
@@ -206,12 +206,16 @@ class project:
                     durdays = int(self.durations[child])
                     self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
                     self.forwardprop2(child)
-
-        self.start_backwardprop()
+        
+        #Gives the option to exit the method before backprop for speed if critical path is not needed.
+        if backprop == True:
+            self.start_backwardprop()
+        else:
+            return None
 
     def start_backwardprop(self):
         '''Method to kick off the backward propagation from the end task'''
-        self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[self.endid,'EarlyFinish'] #Set the late start adn late finish 
+        self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[self.endid,'EarlyFinish'] #Set the late start and late finish 
         self.linksdf.loc[:,'LateStart'] = self.linksdf.loc[self.endid,'EarlyStart']   # In anticipation of calling backprop
         self.backwardprop(self.endid)
         return None
@@ -221,7 +225,7 @@ class project:
 
         #Get the parents
         parents = self.findParents(taskID)
-
+        #templfd = self.linksdf.loc[taskID,'LateStart']
         if parents is None: #If no parents are found, then the backward prop is complete, kick out of method.
             return None
         else:
@@ -293,6 +297,7 @@ class distResults:
         return self.critical_path_recursive(taskID,cplist)
     
     def critical_path_recursive(self,taskID,cplist):
+        '''Internal method called by critical path'''
         
         tempdf = self.resultsdf
         indexlist = tempdf.index

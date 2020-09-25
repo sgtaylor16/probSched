@@ -130,7 +130,16 @@ class project:
         #Set the end variable
         self.findend()
 
-            #Clean this up
+    def readdf(self,df):
+        '''Reads a Dataframe'''
+        for i in range(df.shape[0]):
+            taskseries = df.iloc[i,:]
+            self.taskdir[taskseries['TaskID']] = task(taskseries['TaskID'],taskseries['Task'],taskseries['Duration'],taskseries['Predecessors'])
+            self.linksdf.loc[taskseries['TaskID'],'EarlyStart'] = self.startdate
+            self.linksdf.loc[taskseries['TaskID'],'EarlyFinish'] = self.startdate + datetime.timedelta(days = int(taskseries['Duration']))
+            self.taskdf.loc[taskseries['TaskID'],:] = [taskseries['Task'],taskseries['Duration'],taskseries['Predecessors']]
+            self.durations = self.taskdf['Duration'].copy()
+
         
     def _reset_linksdf(self):
         '''Internal Method used to reset the taskdf after running as simulation, before running forwardprop.'''
@@ -291,8 +300,6 @@ class project:
         ax.invert_yaxis()
         ax.yaxis.set_ticks([])
         
-        
-
 def simulate(project,nsamp = 10,backprop = True):
     '''Function to simulate a project to create a distribution
     Arguments:

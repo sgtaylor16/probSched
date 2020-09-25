@@ -67,7 +67,10 @@ class task:
 
     def mean_duration(self):
         '''Method to return the mean of the task duration (if a scipy.stats object has been provided)'''
-        return self.dist.mean()
+        if self.dist is None:
+            return self.duration
+        else:
+            return self.dist.mean()
 
 class project:
     def __init__(self,startdate = None):
@@ -125,7 +128,7 @@ class project:
         
         #Set the start variable
         self.findstart()
-                #Create the children map
+        #Create the children map
         self.children = self.familytree()
         #Set the end variable
         self.findend()
@@ -140,6 +143,12 @@ class project:
             self.taskdf.loc[taskseries['TaskID'],:] = [taskseries['Task'],taskseries['Duration'],taskseries['Predecessors']]
             self.durations = self.taskdf['Duration'].copy()
 
+        #Set the start variable
+        self.findstart()
+        #Create the children map
+        self.children = self.familytree()
+        #Set the end variable
+        self.findend()
         
     def _reset_linksdf(self):
         '''Internal Method used to reset the taskdf after running as simulation, before running forwardprop.'''
@@ -292,9 +301,8 @@ class project:
             ax.barh(y,width = (finish - start),height = 8,left = start, color = 'blue')
             ax.text(finish,y,task.task,ha = 'right',color = 'white',fontsize = 16)
             
+        ax.set_xlim([date2num(self.linksdf['EarlyStart'].min()),date2num(self.linksdf['EarlyFinish'].max())])
         ax.xaxis_date()
-        ax.set_xlim([date2num(parse('6/1/2020')),date2num(parse('12/31/2020'))])
-        #ax.set_xlim([parse('9/1/2020'),parse('5/1/2021')])
 
         ax.set_ylim([0,10 * len(self.taskdir)+10])
         ax.invert_yaxis()

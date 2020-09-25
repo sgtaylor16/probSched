@@ -5,6 +5,7 @@ import datetime
 from seaborn import distplot
 from numpy import nan
 from matplotlib import pyplot as plt
+from matplotlib.dates import date2num
 
 class task:
     def __init__(self,id,task,dur,preds,scipy_object=None):
@@ -63,7 +64,11 @@ class task:
         ax[0].grid()
         ax[1].fill_between(xvalues,ycdf,alpha = 0.7)
         ax[1].grid()
-        
+
+    def mean_duration(self):
+        '''Method to return the mean of the task duration (if a scipy.stats object has been provided)'''
+        return self.dist.mean()
+
 class project:
     def __init__(self,startdate = None):
         if startdate == None:
@@ -186,7 +191,11 @@ class project:
                    self.forwardprop(child)
         
     def forwardprop2(self,taskID = None,backprop = True):
-        '''Method to run the forward propagation of the Gantt chart to determine the project length'''
+        '''Method to run the forward propagation of the Gantt chart to determine the project length
+        Arguments:
+        taskID, integer: taskID to start forwardprop at, defaults to projects .startid attribute if None
+        backprop, boolean: Do not run backprop if critical path is not needed.
+        '''
         if taskID is None:
             taskID = self.startid
         
@@ -205,7 +214,7 @@ class project:
                     self.linksdf.loc[child,'EarlyStart'] = tempesd #Shift the start date
                     durdays = int(self.durations[child])
                     self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
-                    self.forwardprop2(child)
+                    self.forwardprop2(child,backprop)
         
         #Gives the option to exit the method before backprop for speed if critical path is not needed.
         if backprop == True:
@@ -247,23 +256,55 @@ class project:
             self.durations[task.id] = task.random_duration()
             self.taskdf.loc[task.id,'Duration'] = self.durations[task.id]
 
+    def mean(self,backprop = True):
+        '''Method to give the mean of the tasks'''
+        for task in self.taskdir.values():
+            self.taskdf.loc[task.id,'Duration'] = task.mean_duration()
+        self._reset_linksdf()
+        self.forwardprop2(project.startid,backprop)
+
     def summarytable(self):
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
 
     def distplot(self,taskID,figsize = None):
         self.taskdir[taskID].distplot(figsize)
 
-def simulate(project,nsamp = 10):
+    def Gantt(self,fontsize = 16):
+        rectangledir ={}
+        r_height = 8
+
+        fig,ax = plt.subplots(figsize = (20,10))
+
+        for i,task in enumerate(self.taskdir.values()):
+            y = i*10
+            x = self.linksdf.loc[task.id,'EarlyStart']
+            start = date2num(self.linksdf.loc[task.id,'EarlyStart'])
+            finish = date2num(self.linksdf.loc[task.id,'EarlyFinish'])
+            ax.barh(y,width = (finish - start),height = 8,left = start, color = 'blue')
+            ax.text(finish,y,task.task,ha = 'right',color = 'white',fontsize = 16)
+            
+        ax.xaxis_date()
+        ax.set_xlim([date2num(parse('6/1/2020')),date2num(parse('12/31/2020'))])
+        #ax.set_xlim([parse('9/1/2020'),parse('5/1/2021')])
+
+        ax.set_ylim([0,10 * len(self.taskdir)+10])
+        ax.invert_yaxis()
+        ax.yaxis.set_ticks([])
+        
+        
+
+def simulate(project,nsamp = 10,backprop = True):
     '''Function to simulate a project to create a distribution
     Arguments:
     project, base.project class: project class to simulate
     nsamp, int: Number of simulations to run
+    backprop, boolean: True, runs backprop, False does not run backpop
     '''
     results = []
     for i in range(nsamp):
         project.sample()  #Populate the distributions attribute with random variables
         project._reset_linksdf()
-        project.forwardprop2(project.startid) #Run the distributions
+        project.forwardprop2(project.startid, backprop) #Run the distributions
         results.append(distResults(project.summarytable()))  #Create a list of distResults class
     return results
 

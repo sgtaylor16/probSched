@@ -8,6 +8,9 @@ from matplotlib import pyplot as plt
 from matplotlib.dates import date2num
 
 class task:
+    '''The task class represents all data for a given task. It does not contain any information
+    regarding a task's relationship to other tasks (e.g. Predecessors, start dates, etc)
+    '''
     def __init__(self,id,task,dur,preds,scipy_object=None):
         '''initiator method
         Arguments:
@@ -75,9 +78,9 @@ class task:
 class project:
     def __init__(self,startdate = None):
         if startdate == None:
-            startdate = datetime.datetime.today()
+            self.startdate = pd.Timestamp(datetime.datetime.today())
         elif type(startdate) == str:
-            self.startdate = parse(startdate)
+            self.startdate = pd.Timestamp(parse(startdate))
         else:
             raise ValueError
         self.taskdir = {}
@@ -187,27 +190,7 @@ class project:
         
         return self.taskdir[taskID].predecessors
         
-    def forwardprop(self,taskID = None):
-        '''Method to run the forward propagation of the Gantt chart to determine the project length'''
-        #Get the children
-        if taskID is None:
-            taskID = self.startid
-
-        kids = self.children[taskID]
-        if len(kids) == 0: #If no children are found, then you are at completion. Kick out of the function.
-            self.linksdf.loc[:,'LateFinish'] = self.linksdf.loc[taskID,'EarlyFinish'] #Set the late start adn late finish 
-            self.linksdf.loc[:,'LateStart'] = self.linksdf.loc[taskID,'EarlyStart']   # In anticipation of calling backprop
-            for parent in self.findParents(taskID):
-                self.backwardprop(taskID)
-        else:
-            for child in kids:
-               tempesd = self.linksdf.loc[taskID,'EarlyFinish']
-               if tempesd >= self.linksdf.loc[child,'EarlyStart']:
-                   self.linksdf.loc[child,'EarlyStart'] = tempesd  #Shift the start date
-                   durdays = int(self.durations[child])
-                   self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days =durdays)
-                   self.forwardprop(child)
-        
+           
     def forwardprop2(self,taskID = None,backprop = True):
         '''Method to run the forward propagation of the Gantt chart to determine the project length
         Arguments:
@@ -257,11 +240,11 @@ class project:
             return None
         else:
             for parent in parents:
-                templfd = self.linksdf.loc[taskID,'LateStart']
-                if templfd <= self.linksdf.loc[parent,'LateFinish']:
-                    self.linksdf.loc[parent,'LateFinish'] = templfd # Shift the finish date
+                templsd = self.linksdf.loc[taskID,'LateStart']
+                if templsd <= self.linksdf.loc[parent,'LateFinish']:
+                    self.linksdf.loc[parent,'LateFinish'] = templsd # Shift the finish date
                     durdays = int(self.durations[parent])
-                    self.linksdf.loc[parent,'LateStart'] = templfd - datetime.timedelta(days = durdays)
+                    self.linksdf.loc[parent,'LateStart'] = templsd - datetime.timedelta(days = durdays)
                     self.backwardprop(parent)
 
     def add_dist(self,taskID,scipy_object):
@@ -277,10 +260,9 @@ class project:
     def mean(self,backprop = True):
         '''Method to give the mean of the tasks'''
         for task in self.taskdir.values():
+            self.durations[task.id] = task.mean_duration()
             self.taskdf.loc[task.id,'Duration'] = task.mean_duration()
-        self._reset_linksdf()
-        self.forwardprop2(project.startid,backprop)
-
+        
     def summarytable(self):
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
 
@@ -288,8 +270,6 @@ class project:
         self.taskdir[taskID].distplot(figsize)
 
     def Gantt(self,fontsize = 16):
-        rectangledir ={}
-        r_height = 8
 
         fig,ax = plt.subplots(figsize = (20,10))
 
@@ -299,7 +279,7 @@ class project:
             start = date2num(self.linksdf.loc[task.id,'EarlyStart'])
             finish = date2num(self.linksdf.loc[task.id,'EarlyFinish'])
             ax.barh(y,width = (finish - start),height = 8,left = start, color = 'blue')
-            ax.text(finish,y,task.task,ha = 'right',color = 'white',fontsize = 16)
+            ax.text(finish,y,task.task,ha = 'right',color = 'black',fontsize = 16)
             
         ax.set_xlim([date2num(self.linksdf['EarlyStart'].min()),date2num(self.linksdf['EarlyFinish'].max())])
         ax.xaxis_date()
@@ -307,6 +287,31 @@ class project:
         ax.set_ylim([0,10 * len(self.taskdir)+10])
         ax.invert_yaxis()
         ax.yaxis.set_ticks([])
+
+    def critical_path(self):
+        '''Finds the critical path'''
+        cplist= [self.startid]
+        return self.critical_path_recursive(self.startid,cplist)
+
+    def critical_path_recursive(self,taskID,cplist):
+        '''Internal method called by critical path'''
+        tempdf = self.linksdf
+        indexlist = tempdf.index
+        #Remove any tasks that start *before* taskid
+        temp = tempdf.loc[taskID,"LateFinish"]
+        temp2df = tempdf.query("LateStart >= @temp")
+        for i in temp2df.index:
+            if i == taskID:
+                continue
+            elif tempdf.loc[i,"LateStart"] == tempdf.loc[i,"LateFinish"]:
+                #Found the end of the project
+                return cplist
+            elif tempdf.loc[i,"LateStart"] == tempdf.loc[taskID,"LateFinish"]:
+                cplist.append(i)
+                cplist = self.critical_path_recursive(i,cplist)
+            else:
+                continue
+        return None
         
 def simulate(project,nsamp = 10,backprop = True):
     '''Function to simulate a project to create a distribution
@@ -322,6 +327,7 @@ def simulate(project,nsamp = 10,backprop = True):
         project.forwardprop2(project.startid, backprop) #Run the distributions
         results.append(distResults(project.summarytable()))  #Create a list of distResults class
     return results
+
 
 class distResults:
     def __init__(self,resultsdf):

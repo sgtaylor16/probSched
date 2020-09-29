@@ -127,7 +127,7 @@ class project:
             self.linksdf.loc[taskseries['TaskID'],'EarlyStart'] = self.startdate
             self.linksdf.loc[taskseries['TaskID'],'EarlyFinish'] = self.startdate + datetime.timedelta(days = int(taskseries['Duration']))
             self.taskdf.loc[taskseries['TaskID'],:] = [taskseries['Task'],taskseries['Duration'],taskseries['Predecessors']]
-            self.durations = self.taskdf['Duration'].copy()
+            #self.durations = self.taskdf['Duration'].copy()
         
         #Set the start variable
         self.findstart()
@@ -157,7 +157,8 @@ class project:
         '''Internal Method used to reset the taskdf after running as simulation, before running forwardprop.'''
         for row in self.linksdf.index:
             self.linksdf.loc[row,'EarlyStart'] = self.startdate
-            durdays = int(self.durations[row])
+            #durdays = int(self.durations[row])
+            durdays = self.taskdf.loc[row,'Duration']
             self.linksdf.loc[row,'EarlyFinish'] = self.startdate + datetime.timedelta(days = durdays)
         self.linksdf['LateStart'] = float('NaN')
         self.linksdf['LateFinish'] = float('NaN')
@@ -189,8 +190,13 @@ class project:
         '''Method to find the direct parents of a given task'''
         
         return self.taskdir[taskID].predecessors
+    
+    def _holidaytest(self,finishdate):
+        if (finishdate.month == 12) and (finishdate.day > 20):
+            return True
+        else:
+            return False
         
-           
     def forwardprop2(self,taskID = None,backprop = True):
         '''Method to run the forward propagation of the Gantt chart to determine the project length
         Arguments:
@@ -202,19 +208,25 @@ class project:
         
         kids = self.children[taskID]
 
+
+
         for child in kids:
             if child == "EndofProject":
                 tempesd = self.linksdf.loc[taskID,'EarlyFinish']
                 if tempesd > self.linksdf.loc[taskID,'EarlyStart']:
                     self.linksdf.loc[child,'EarlyStart'] = tempesd #Shft the start date
-                    durdays = int(self.durations[child])
+                    #durdays = int(self.durations[child])
+                    durdays = int(self.taskdf.loc[child,'Duration'])
                     self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
             else:
                 tempesd = self.linksdf.loc[taskID,'EarlyFinish']
                 if tempesd >= self.linksdf.loc[child,'EarlyStart']:
                     self.linksdf.loc[child,'EarlyStart'] = tempesd #Shift the start date
-                    durdays = int(self.durations[child])
+                    #durdays = int(self.durations[child])
+                    durdays = int(self.taskdf.loc[child,'Duration'])
                     self.linksdf.loc[child,'EarlyFinish'] = tempesd + datetime.timedelta(days = durdays)
+                    if self._holidaytest(self.linksdf.loc[child,'EarlyFinish']):
+                        self.linksdf.loc[child,'EarlyFinish'] = self.linksdf.loc[child,'EarlyFinish'] + datetime.timedelta(days =10)
                     self.forwardprop2(child,backprop)
         
         #Gives the option to exit the method before backprop for speed if critical path is not needed.
@@ -243,8 +255,11 @@ class project:
                 templsd = self.linksdf.loc[taskID,'LateStart']
                 if templsd <= self.linksdf.loc[parent,'LateFinish']:
                     self.linksdf.loc[parent,'LateFinish'] = templsd # Shift the finish date
-                    durdays = int(self.durations[parent])
+                    #durdays = int(self.durations[parent])
+                    durdays = int(self.taskdf.loc[parent,'Duration'])
                     self.linksdf.loc[parent,'LateStart'] = templsd - datetime.timedelta(days = durdays)
+                    if self._holidaytest(self.linksdf.loc[parent,'LateStart']):
+                        self.linksdf.loc[parent,'LateStart'] = self.linksdf.loc[parent,'LateStart'] - datetime.timedelta(days =10)
                     self.backwardprop(parent)
 
     def add_dist(self,taskID,scipy_object):
@@ -254,8 +269,9 @@ class project:
     def sample(self):
         '''Method to simulate the project once with stochastic values for tasks'''
         for task in self.taskdir.values():
-            self.durations[task.id] = task.random_duration()
-            self.taskdf.loc[task.id,'Duration'] = self.durations[task.id]
+            #self.durations[task.id] = task.random_duration()
+            #self.taskdf.loc[task.id,'Duration'] = self.durations[task.id]
+            self.taskdf.loc[task.id,'Duration'] = task.random_duration()
 
     def mean(self,backprop = True):
         '''Method to give the mean of the tasks'''
@@ -287,11 +303,13 @@ class project:
         ax.set_ylim([0,10 * len(self.taskdir)+10])
         ax.invert_yaxis()
         ax.yaxis.set_ticks([])
+        ax.grid()
 
     def critical_path(self):
         '''Finds the critical path'''
         cplist= [self.startid]
-        return self.critical_path_recursive(self.startid,cplist)
+        cplist =  self.critical_path_recursive(self.startid,cplist)
+        return pd.Series(cplist).drop_duplicates().to_list()
 
     def critical_path_recursive(self,taskID,cplist):
         '''Internal method called by critical path'''
@@ -356,7 +374,8 @@ class distResults:
         #Find the startdate
         taskID = self.starttask()
         cplist = [taskID]
-        return self.critical_path_recursive(taskID,cplist)
+        cplist =  self.critical_path_recursive(taskID,cplist)
+        return pd.Series(cplist).drop_duplicates().to_list()
     
     def critical_path_recursive(self,taskID,cplist):
         '''Internal method called by critical path'''

@@ -199,6 +199,9 @@ class project:
         '''
         if taskID is None:
             taskID = self.startid
+
+        #Reset the linksdf 
+        self._reset_linksdf()
         
         kids = self.children[taskID]
 

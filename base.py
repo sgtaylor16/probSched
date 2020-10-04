@@ -67,6 +67,7 @@ class task:
         ax[0].grid()
         ax[1].fill_between(xvalues,ycdf,alpha = 0.7)
         ax[1].grid()
+        return fig
 
     def mean_duration(self):
         '''Method to return the mean of the task duration (if a scipy.stats object has been provided)'''
@@ -201,7 +202,7 @@ class project:
             taskID = self.startid
 
         #Reset the linksdf 
-        self._reset_linksdf()
+        #Sself._reset_linksdf()
         
         kids = self.children[taskID]
 
@@ -270,7 +271,9 @@ class project:
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
 
     def distplot(self,taskID,figsize = None):
-        self.taskdir[taskID].distplot(figsize)
+        fig = self.taskdir[taskID].distplot(figsize)
+        return fig
+
 
     def Gantt(self,fontsize = 16):
 
@@ -281,7 +284,7 @@ class project:
             x = self.linksdf.loc[task.id,'EarlyStart']
             start = date2num(self.linksdf.loc[task.id,'EarlyStart'])
             finish = date2num(self.linksdf.loc[task.id,'EarlyFinish'])
-            ax.barh(y,width = (finish - start),height = 8,left = start, color = 'blue')
+            ax.barh(y,width = (finish - start),height = 8,left = start, color = 'dodgerblue')
             ax.text(finish,y,task.task,ha = 'right',color = 'black',fontsize = 16)
             
         ax.set_xlim([date2num(self.linksdf['EarlyStart'].min()),date2num(self.linksdf['EarlyFinish'].max())])
@@ -290,6 +293,8 @@ class project:
         ax.set_ylim([0,10 * len(self.taskdir)+10])
         ax.invert_yaxis()
         ax.yaxis.set_ticks([])
+
+        return fig
 
     def critical_path(self):
         '''Finds the critical path'''
@@ -328,11 +333,11 @@ def simulate(project,nsamp = 10,backprop = True):
         project.sample()  #Populate the distributions attribute with random variables
         project._reset_linksdf()
         project.forwardprop2(project.startid, backprop) #Run the distributions
-        results.append(distResults(project.summarytable()))  #Create a list of distResults class
+        results.append(Results(project.summarytable()))  #Create a list of distResults class
     return results
 
 
-class distResults:
+class Results:
     def __init__(self,resultsdf):
         self.resultsdf = resultsdf
     
@@ -380,3 +385,13 @@ class distResults:
             else:
                 continue
         return None
+
+def finishDistribution(resultslist):
+    '''Takes a list of instances of the Results class and creates a distribution of finish
+    dates
+    Arguments:
+    resultslist, list: list of instances of results typically generated from simulate
+    '''
+    tempSeries = pd.Series([case.finish_date(case.endtask()) for case in resultslist])
+
+    tempdates = tempSeries.value_counts().sort_index()

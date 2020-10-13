@@ -51,7 +51,7 @@ class task:
         '''Accessor method to set the dist attribute to a scipy.stats object'''
         self.dist = scipy_object
 
-    def distplot(self,figsize = (12,6)):
+    def distplot(self,startdate = None,figsize = (12,6)):
         '''Method to give a graphical depiction of the task duration distribution'''
         #Find the 
         ycdf = [0]
@@ -61,12 +61,21 @@ class task:
             xvalues.append(xvalues[-1] + xstep)
             ycdf.append(self.dist.cdf(xvalues[-1]))
         ypdf = [self.dist.pdf(xval) for xval in xvalues]
+        
+        if startdate is not None:
+            #Replace the dates with numerical values on the x-axis with dates.
+            newxvalues = [startdate + datetime.timedelta(days = duration) for duration in xvalues]
+        else:
+            newxvalues = xvalues
 
         fig,ax = plt.subplots(1,2,figsize = figsize)
-        ax[0].fill_between(xvalues,ypdf,alpha = 0.7)
+        ax[0].fill_between(newxvalues,ypdf,alpha = 0.7)
         ax[0].grid()
-        ax[1].fill_between(xvalues,ycdf,alpha = 0.7)
+        ax[1].fill_between(newxvalues,ycdf,alpha = 0.7)
         ax[1].grid()
+        if startdate is not None:
+            ax[0].tick_params(axis = 'x', labelrotation = 90)
+            ax[1].tick_params(axis = 'x', labelrotation = 90)
         return fig
 
     def mean_duration(self):
@@ -268,8 +277,8 @@ class project:
     def summarytable(self):
         return pd.merge(self.taskdf,self.linksdf,left_index = True, right_index = True)
 
-    def distplot(self,taskID,figsize = None):
-        fig = self.taskdir[taskID].distplot(figsize)
+    def distplot(self,taskID,startdate = None,figsize = None):
+        fig = self.taskdir[taskID].distplot(startdate,figsize)
         return fig
 
     def Gantt(self,fontsize = 16):

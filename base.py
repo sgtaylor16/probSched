@@ -137,6 +137,8 @@ class project:
         #Set the end variable
         self.findend()
 
+        self.linksdf = self.linksdf.infer_objects()  #Trying to enforce consistent date types
+
     def readdf(self,df):
         '''Reads a Dataframe'''
         for i in range(df.shape[0]):
@@ -191,7 +193,6 @@ class project:
         
         return self.taskdir[taskID].predecessors
         
-           
     def forwardprop2(self,taskID = None,backprop = True):
         '''Method to run the forward propagation of the Gantt chart to determine the project length
         Arguments:
@@ -200,9 +201,6 @@ class project:
         '''
         if taskID is None:
             taskID = self.startid
-
-        #Reset the linksdf 
-        #Sself._reset_linksdf()
         
         kids = self.children[taskID]
 
@@ -273,7 +271,6 @@ class project:
     def distplot(self,taskID,figsize = None):
         fig = self.taskdir[taskID].distplot(figsize)
         return fig
-
 
     def Gantt(self,fontsize = 16):
 
@@ -394,4 +391,4 @@ def finishDistribution(resultslist):
     '''
     tempSeries = pd.Series([case.finish_date(case.endtask()) for case in resultslist])
 
-    tempdates = tempSeries.value_counts().sort_index()
+    return tempSeries.value_counts().sort_index()
